@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>手札大喜利</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+    :root {
+      --bg: #1f130f;
+      --bg-soft: #2b1a13;
+      --panel: rgba(255, 247, 236, 0.96);
+      --accent: #b5733b;
+      --accent-soft: #e8c5a3;
+      --accent-dark: #704020;
+      --text-main: #3c2415;
+      --text-soft: #6d5140;
+      --border-soft: rgba(0,0,0,0.08);
+      --card-bg: #fff7ec;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text-main);
+      background: radial-gradient(circle at top, #3b2314 0, #1c0f08 50%, #0c0603 100%);
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      padding: 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1080px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(255,248,235,0.96));
+      border-radius: 24px;
+      box-shadow:
+        0 24px 60px rgba(0,0,0,0.45),
+        0 0 0 1px rgba(255,255,255,0.35);
+      padding: 20px 20px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .container::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(255,255,255,0.25), transparent 60%),
+        radial-gradient(circle at 100% 0%, rgba(255,194,120,0.25), transparent 55%);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .inner {
+      position: relative;
+      z-index: 1;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .title-block {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent-dark);
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .badge-phase {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.16);
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(181, 115, 59, 0.25);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 800px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* --- 左カラム：参加 & ロビー --- */
+
+    .section {
+      background: rgba(255,255,255,0.9);
+      border-radius: 18px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border-soft);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .section h2 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent-dark);
+    }
+
+    .section h2::before {
+      content: "";
+      width: 8px;
+      height: 18px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+      opacity: 0.9;
+    }
+
+    .section p {
+      margin: 3px 0 8px;
+      font-size: 13px;
+      color: var(--text-soft);
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"] {
+      padding: 7px 9px;
+      border-radius: 10px;
+      border: 1px solid #d1c3b7;
+      width: 100%;
+      font-size: 13px;
+      outline: none;
+      background: #fffdf8;
+    }
+    input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(181,115,59,0.25);
+    }
+
+    button {
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: #fff;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition:
+        transform 0.08s ease,
+        box-shadow 0.08s ease,
+        filter 0.08s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.28);
+      filter: brightness(1.03);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+      filter: brightness(0.96);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: default;
+      box-shadow: none;
+      filter: grayscale(0.1);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--accent-dark);
+      box-shadow: none;
+      border: 1px solid rgba(181,115,59,0.4);
+    }
+    .btn-ghost:hover:not(:disabled) {
+      background: rgba(255,248,237,0.9);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .error {
+      color: #c0392b;
+      margin-top: 3px;
+      font-size: 12px;
+    }
+
+    .small {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    #player-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 6px 0 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .player-chip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      background: #fffaf2;
+      border-radius: 999px;
+      padding: 4px 8px;
+      border: 1px solid rgba(0,0,0,0.03);
+    }
+
+    .player-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: var(--accent-dark);
+      font-weight: 600;
+    }
+
+    .tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.04);
+      color: var(--text-soft);
+    }
+
+    /* --- 右カラム：ゲーム画面 --- */
+
+    #game-section {
+      background: rgba(255,255,255,0.95);
+      border-radius: 18px;
+      padding: 12px 16px 14px;
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    #phase-title {
+      margin: 0 0 4px;
+      font-size: 18px;
+      color: var(--accent-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #phase-info {
+      margin: 0 0 10px;
+    }
+
+
+
+    .score-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #fffaf2;
+      margin-bottom: 3px;
+    }
+
+    .score-row.me {
+      background: #fbe7cc;
+      font-weight: 500;
+    }
+
+    .score-name {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .score-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.06);
+      color: var(--text-soft);
+    }
+
+    #prompt-section {
+      margin: 6px 0 10px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      background: #fff8ec;
+      border: 1px dashed rgba(181,115,59,0.4);
+    }
+
+    .prompt {
+    font-weight: 700;      /* 太めに */
+    font-size: 16px;       /* 少し大きめに */
+    margin-bottom: 4px;
+    }
+
+
+    .prompt-label {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    /* --- カードグリッド --- */
+
+    .cards-wrapper-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .cards-title {
+      font-size: 14px;
+      margin: 0;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .card {
+      border-radius: 14px;
+      padding: 9px 10px 10px;
+      background: var(--card-bg);
+      box-shadow:
+        0 3px 8px rgba(0,0,0,0.12),
+        0 0 0 1px rgba(0,0,0,0.02);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1.4;
+      position: relative;
+      overflow: hidden;
+      transition:
+        transform 0.05s ease,
+        box-shadow 0.05s ease,
+        background 0.08s ease,
+        opacity 0.08s ease;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top left, rgba(255,255,255,0.5), transparent 55%);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      pointer-events: none;
+    }
+
+    .card:hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 6px 15px rgba(0,0,0,0.16),
+        0 0 0 1px rgba(181,115,59,0.28);
+      background: #fffaf1;
+    }
+
+    .card:hover::before {
+      opacity: 0.7;
+    }
+
+    .card.disabled {
+      opacity: 0.55;
+      cursor: default;
+      box-shadow:
+        0 1px 3px rgba(0,0,0,0.06),
+        0 0 0 1px rgba(0,0,0,0.02);
+      transform: none;
+    }
+
+    .card.disabled::before {
+      opacity: 0;
+    }
+
+    .card.my-submission {
+  background: #e6f3ff;                 /* 薄い水色 */
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(80, 130, 200, 0.35);
+    }
+
+.card.voted-by-me {
+  background: #ffe8e8;                 /* 薄い赤っぽい */
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(210, 80, 80, 0.4);
+    }
+
+
+    .card-label {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.06);
+      color: var(--text-soft);
+    }
+
+    #result-section, #gameover-section {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(0,0,0,0.12);
+    }
+
+    #result-section h3,
+    #gameover-section h3 {
+      margin: 0 0 4px;
+      font-size: 14px;
+      color: var(--accent-dark);
+    }
+
+    #result-list > div,
+    #gameover-list > div {
+      font-size: 13px;
+      margin-top: 3px;
+    }
+
+    #game-error {
+      margin-top: 6px;
+      min-height: 16px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="inner">
+      <header>
+        <div class="title-block">
+          <h1>手札大喜利</h1>
+          <div class="subtitle">Card-based Online Oogiri Party</div>
+        </div>
+        <div class="badge-phase">
+          <div class="badge-dot"></div>
+          <span id="phase-badge-text">待機中</span>
+        </div>
+      </header>
+
+      <main>
+        <!-- 左カラム：参加 & ロビー -->
+        <div>
+          <!-- 参加フォーム -->
+          <div class="section" id="join-section">
+            <h2>参加する</h2>
+            <p>名前を入力して、部屋に入ります。</p>
+            <div class="field-row">
+              <input type="text" id="name-input" placeholder="名前（未入力でもOK）" />
+            </div>
+            <div class="field-row">
+              <button id="join-button">
+                参加する
+              </button>
+            </div>
+            <div id="join-error" class="error"></div>
+          </div>
+
+          <!-- ロビー表示 -->
+          <div class="section" id="lobby-section" style="display:none;">
+            <h2>ロビー</h2>
+            <p id="lobby-info"></p>
+            <ul id="player-list"></ul>
+            <div style="margin-top:8px; display:flex; gap:6px; align-items:center;">
+              <button id="start-button" disabled>ゲーム開始（ホスト）</button>
+            </div>
+            <div class="small" style="margin-top:4px;">
+              ※ 最低2人から開始できます。最大4人まで。
+            </div>
+          </div>
+        </div>
+
+        <!-- 右カラム：スコア & 回答エリア -->
+        <div>
+          <!-- ★ スコア専用ボックス -->
+          <div class="section" id="score-section" style="display:none;">
+            <h2>スコア</h2>
+            <div id="score-list"></div>
+          </div>
+
+          <!-- ★ 回答エリア（お題＋手札・投票・結果など） -->
+          <div class="section" id="game-section" style="display:none;">
+            <h2 id="phase-title">ゲーム</h2>
+            <div id="phase-info" class="small"></div>
+
+            <div id="prompt-section">
+              <div class="prompt" id="prompt-text">まだゲームは開始していません。</div>
+              <div class="prompt-label">お題がここに表示されます。</div>
+            </div>
+
+            <!-- 回答選択フェーズ -->
+            <div id="hand-section" style="display:none;">
+              <div class="cards-wrapper-title">
+                <h3 class="cards-title">手札（1枚選んで出す）</h3>
+                <div class="small">タップ / クリックで提出</div>
+              </div>
+              <div id="hand-cards" class="card-grid"></div>
+            </div>
+
+            <!-- 投票フェーズ -->
+            <div id="vote-section" style="display:none;">
+              <div class="cards-wrapper-title">
+                <h3 class="cards-title">投票（1枚選んで投票）</h3>
+                <div class="small">自分のカードには投票できません</div>
+              </div>
+              <div id="vote-cards" class="card-grid"></div>
+            </div>
+
+            <!-- ラウンド結果 -->
+            <div id="result-section" style="display:none;">
+              <h3>ラウンド結果</h3>
+              <div id="result-list"></div>
+            </div>
+
+            <!-- ゲーム終了 -->
+            <div id="gameover-section" style="display:none;">
+            <h3>最終結果</h3>
+            <div id="gameover-list"></div>
+            <div style="margin-top:8px;">
+                <button id="restart-button" class="btn-ghost">もう一回遊ぶ（ホストのみ）</button>
+            </div>
+            </div>
+
+
+            <div id="game-error" class="error"></div>
+          </div>
+        </div>
+      </main>
+
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+
+    let myPlayerId = null;
+    let hostId = null;
+    let currentPhase = 'waiting';
+    let hasPlayedThisRound = false;
+    let hasVotedThisRound = false;
+
+    const joinSection = document.getElementById('join-section');
+    const joinButton = document.getElementById('join-button');
+    const nameInput = document.getElementById('name-input');
+    const joinError = document.getElementById('join-error');
+
+    const lobbySection = document.getElementById('lobby-section');
+    const lobbyInfo = document.getElementById('lobby-info');
+    const playerList = document.getElementById('player-list');
+    const startButton = document.getElementById('start-button');
+
+    const scoreSection = document.getElementById('score-section');  // ★ 追加
+    const gameSection = document.getElementById('game-section');    // ★ ここで取得
+
+    const phaseTitle = document.getElementById('phase-title');
+    const phaseInfo = document.getElementById('phase-info');
+    const scoreList = document.getElementById('score-list');
+    const promptText = document.getElementById('prompt-text');
+    const phaseBadgeText = document.getElementById('phase-badge-text');
+
+
+    const handSection = document.getElementById('hand-section');
+    const handCards = document.getElementById('hand-cards');
+
+    const voteSection = document.getElementById('vote-section');
+    const voteCards = document.getElementById('vote-cards');
+
+    const resultSection = document.getElementById('result-section');
+    const resultList = document.getElementById('result-list');
+
+    const gameoverSection = document.getElementById('gameover-section');
+    const gameoverList = document.getElementById('gameover-list');
+
+    const restartButton = document.getElementById('restart-button');
+
+
+    const gameError = document.getElementById('game-error');
+
+    function updatePhaseBadge(label) {
+      phaseBadgeText.textContent = label;
+    }
+
+    function setPhase(title, info, badgeLabel) {
+      phaseTitle.textContent = title;
+      phaseInfo.textContent = info || '';
+      if (badgeLabel) updatePhaseBadge(badgeLabel);
+    }
+
+    function initialsFromName(name) {
+    if (!name) return '?';
+    const trimmed = name.trim();
+    if (!trimmed) return '?';
+    return trimmed[0];   // 先頭1文字だけ
+    }
+
+
+    function renderScores(scores) {
+      scoreList.innerHTML = '';
+      scores.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'score-row';
+        if (s.id === myPlayerId) row.classList.add('me');
+
+        const left = document.createElement('div');
+        left.className = 'score-name';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = s.name;
+        left.appendChild(nameSpan);
+
+        if (s.id === hostId) {
+          const tag = document.createElement('span');
+          tag.className = 'score-badge';
+          tag.textContent = 'ホスト';
+          left.appendChild(tag);
+        }
+        if (s.id === myPlayerId) {
+          const tagMe = document.createElement('span');
+          tagMe.className = 'score-badge';
+          tagMe.textContent = 'あなた';
+          left.appendChild(tagMe);
+        }
+
+        const right = document.createElement('div');
+        right.textContent = `${s.score} 点`;
+
+        row.appendChild(left);
+        row.appendChild(right);
+        scoreList.appendChild(row);
+      });
+    }
+
+    function showHand(hand) {
+    handSection.style.display = 'block';
+    voteSection.style.display = 'none';
+    resultSection.style.display = 'none';
+    gameoverSection.style.display = 'none';
+    gameError.textContent = '';
+
+    handCards.innerHTML = '';
+    hand.forEach((cardText, index) => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.textContent = cardText;
+
+        // ← ラベルは付けない
+
+        if (hasPlayedThisRound) {
+        div.classList.add('disabled');
+        } else {
+        div.addEventListener('click', () => {
+            if (hasPlayedThisRound) return;
+            if (!confirm(`このカードを出しますか？\n\n${cardText}`)) return;
+            socket.emit('playCard', { cardIndex: index });
+        });
+        }
+        handCards.appendChild(div);
+    });
+    }
+
+
+    let myVotedSubmissionId = null; // ★ ファイルの上の方（グローバル変数）に追加
+
+    function showVoteCards(submissions) {
+    handSection.style.display = 'none';
+    voteSection.style.display = 'block';
+    resultSection.style.display = 'none';
+    gameoverSection.style.display = 'none';
+    gameError.textContent = '';
+
+    voteCards.innerHTML = '';
+    submissions.forEach(sub => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.textContent = sub.text;
+
+        const label = document.createElement('div');
+        label.className = 'card-label';
+        label.textContent = '投票対象';
+        div.appendChild(label);
+
+        // ★ 自分が出したカードなら薄い水色に
+        if (sub.isMine) {
+        div.classList.add('my-submission');
+        }
+
+        // ★ すでに投票済みで、このカードが自分の投票先なら薄い赤
+        if (myVotedSubmissionId && myVotedSubmissionId === sub.submissionId) {
+        div.classList.add('voted-by-me');
+        }
+
+        if (hasVotedThisRound) {
+        div.classList.add('disabled');
+        } else {
+        div.addEventListener('click', () => {
+            if (hasVotedThisRound) return;
+            if (!confirm(`この回答に投票しますか？\n\n${sub.text}`)) return;
+
+            myVotedSubmissionId = sub.submissionId;       // ★ どれに投票したか記録
+            hasVotedThisRound = true;
+            socket.emit('castVote', { submissionId: sub.submissionId });
+
+            // 自分が投票したカードを赤く、他は無効化
+            const cards = voteCards.querySelectorAll('.card');
+            cards.forEach(c => {
+            const isThisCard =
+                c.textContent.replace('投票対象', '').trim() === sub.text.trim();
+            if (isThisCard) {
+                c.classList.add('voted-by-me');
+            } else {
+                c.classList.add('disabled');
+            }
+            });
+        });
+        }
+        voteCards.appendChild(div);
+    });
+    }
+
+
+    function showRoundResult(data) {
+      handSection.style.display = 'none';
+      voteSection.style.display = 'none';
+      resultSection.style.display = 'block';
+      gameoverSection.style.display = 'none';
+
+      resultList.innerHTML = '';
+      const intro = document.createElement('div');
+      intro.textContent = `第${data.round}ラウンドの結果：`;
+      resultList.appendChild(intro);
+
+      data.results.forEach(r => {
+        const div = document.createElement('div');
+        div.textContent = `「${r.text}」 by ${r.ownerName} …… ${r.votes}票`;
+        resultList.appendChild(div);
+      });
+    }
+
+    function showGameOver(data) {
+      handSection.style.display = 'none';
+      voteSection.style.display = 'none';
+      resultSection.style.display = 'none';
+      gameoverSection.style.display = 'block';
+
+      gameoverList.innerHTML = '';
+      data.scores.forEach((s, idx) => {
+        const div = document.createElement('div');
+        div.textContent = `${idx + 1}位：${s.name}（${s.score}点）`;
+        gameoverList.appendChild(div);
+      });
+    }
+
+    joinButton.addEventListener('click', () => {
+      joinError.textContent = '';
+      const name = nameInput.value.trim();
+      socket.emit('joinGame', { name });
+    });
+
+    startButton.addEventListener('click', () => {
+      socket.emit('startGame');
+    });
+
+    restartButton.addEventListener('click', () => {
+      socket.emit('restartGame');
+    });
+
+
+    socket.on('joined', data => {
+    myPlayerId = data.playerId;
+    joinSection.style.display = 'none';
+    lobbySection.style.display = 'block';
+
+    // ★ 右側の2つのボックスを表示
+    scoreSection.style.display = 'block';
+    gameSection.style.display = 'block';
+
+    setPhase('ロビー', '他のプレイヤーを待っています。', 'ロビー');
+    });
+
+
+    socket.on('lobbyUpdate', data => {
+      hostId = data.hostId;
+      currentPhase = data.gamePhase;
+
+      playerList.innerHTML = '';
+      data.players.forEach(p => {
+        const li = document.createElement('li');
+        const chip = document.createElement('div');
+        chip.className = 'player-chip';
+
+        const left = document.createElement('div');
+        left.className = 'player-left';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar';
+        avatar.textContent = initialsFromName(p.name);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = p.name;
+
+        left.appendChild(avatar);
+        left.appendChild(nameSpan);
+
+        const right = document.createElement('div');
+        if (p.id === hostId) {
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.textContent = 'ホスト';
+          right.appendChild(tag);
+        }
+        if (p.id === myPlayerId) {
+          const tagMe = document.createElement('span');
+          tagMe.className = 'tag';
+          tagMe.textContent = 'あなた';
+          right.appendChild(tagMe);
+        }
+
+        chip.appendChild(left);
+        chip.appendChild(right);
+        li.appendChild(chip);
+        playerList.appendChild(li);
+      });
+
+      lobbyInfo.textContent = `プレイヤー人数：${data.players.length} / ${data.maxPlayers}`;
+
+      if (myPlayerId && myPlayerId === hostId && data.gamePhase === 'waiting') {
+        startButton.disabled = data.players.length < 2;
+      } else {
+        startButton.disabled = true;
+      }
+
+      if (data.gamePhase === 'waiting') {
+        updatePhaseBadge('待機中');
+      }
+    });
+
+    socket.on('roundStarted', data => {
+    currentPhase = 'play';
+    hasPlayedThisRound = false;
+    hasVotedThisRound = false;
+    myVotedSubmissionId = null;  // もしまだ入れてなかったらここも
+
+    // ★ お題エリアを再表示
+    document.getElementById('prompt-section').style.display = 'block';
+
+    setPhase(
+        `第${data.round}ラウンド：回答選択`,
+        '手札から1枚選んでください。',
+        `回答選択 ${data.round}/${data.totalRounds}`
+    );
+    promptText.textContent = data.prompt;
+    renderScores(data.scores);
+    showHand(data.hand);
+
+    resultSection.style.display = 'none';
+    gameoverSection.style.display = 'none';
+    gameError.textContent = '';
+    });
+
+
+    socket.on('startVote', data => {
+    currentPhase = 'vote';
+    hasVotedThisRound = false;
+    myVotedSubmissionId = null;  // ★ ここ追加
+
+    setPhase(
+        `第${data.round}ラウンド：投票`,
+        '一番面白いと思う回答に投票してください。（自分のカードには投票できません）',
+        `投票中 ${data.round}/${data.totalRounds}`
+    );
+    promptText.textContent = data.prompt;
+    renderScores(data.scores);
+    showVoteCards(data.submissions);
+    });
+
+
+    socket.on('roundResult', data => {
+      currentPhase = 'result';
+      renderScores(data.scores);
+      showRoundResult(data);
+      if (data.isLastRound) {
+        setPhase(`第${data.round}ラウンド結果`, 'まもなくゲーム終了です。', '最終ラウンド結果');
+      } else {
+        setPhase(`第${data.round}ラウンド結果`, 'しばらくすると次のラウンドが始まります。', 'ラウンド結果');
+      }
+    });
+
+    socket.on('gameOver', data => {
+    currentPhase = 'finished';
+    setPhase('ゲーム終了', '最終結果をご確認ください。', 'ゲーム終了');
+
+    // お題エリアを非表示
+    document.getElementById('prompt-section').style.display = 'none';
+
+    showGameOver(data);
+
+    // ★ ホストだけリトライボタン有効にする
+    if (myPlayerId && myPlayerId === hostId) {
+        restartButton.disabled = false;
+    } else {
+        restartButton.disabled = true;
+    }
+    });
+
+
+
+    socket.on('cardPlayed', () => {
+      hasPlayedThisRound = true;
+      const cards = handCards.querySelectorAll('.card');
+      cards.forEach(c => c.classList.add('disabled'));
+    });
+
+    socket.on('errorMessage', data => {
+      if (!data || !data.message) return;
+      console.warn('Error from server:', data.message);
+      gameError.textContent = data.message;
+      if (!myPlayerId) {
+        joinError.textContent = data.message;
+      }
+    });
+  </script>
+</body>
+</html>
