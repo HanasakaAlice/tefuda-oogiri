@@ -124,8 +124,6 @@
       }
     }
 
-    /* --- 左カラム：参加 & ロビー --- */
-
     .section {
       background: rgba(255,255,255,0.9);
       border-radius: 18px;
@@ -286,14 +284,8 @@
       color: var(--text-soft);
     }
 
-    /* --- 右カラム：ゲーム画面 --- */
-
     #game-section {
-      background: rgba(255,255,255,0.95);
       border-radius: 18px;
-      padding: 12px 16px 14px;
-      border: 1px solid rgba(0,0,0,0.06);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
     }
 
     #phase-title {
@@ -308,8 +300,6 @@
     #phase-info {
       margin: 0 0 10px;
     }
-
-
 
     .score-row {
       display: flex;
@@ -350,18 +340,15 @@
     }
 
     .prompt {
-    font-weight: 700;      /* 太めに */
-    font-size: 16px;       /* 少し大きめに */
-    margin-bottom: 4px;
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 4px;
     }
-
 
     .prompt-label {
       font-size: 11px;
       color: var(--text-soft);
     }
-
-    /* --- カードグリッド --- */
 
     .cards-wrapper-title {
       display: flex;
@@ -370,6 +357,15 @@
       gap: 8px;
       margin-bottom: 4px;
     }
+
+    .winner-result {
+    font-size: 3.6em;
+    font-weight: 700;
+    color: #d63a3a;
+    margin-top: 6px;
+    margin-bottom: 6px;
+    }
+
 
     .cards-title {
       font-size: 14px;
@@ -436,21 +432,6 @@
       opacity: 0;
     }
 
-    .card.my-submission {
-  background: #e6f3ff;                 /* 薄い水色 */
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, 0.12),
-    0 0 0 1px rgba(80, 130, 200, 0.35);
-    }
-
-.card.voted-by-me {
-  background: #ffe8e8;                 /* 薄い赤っぽい */
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, 0.12),
-    0 0 0 1px rgba(210, 80, 80, 0.4);
-    }
-
-
     .card-label {
       position: absolute;
       top: 6px;
@@ -460,6 +441,20 @@
       border-radius: 999px;
       background: rgba(0,0,0,0.06);
       color: var(--text-soft);
+    }
+
+    .card.my-submission {
+      background: #e6f3ff;
+      box-shadow:
+        0 4px 10px rgba(0, 0, 0, 0.12),
+        0 0 0 1px rgba(80, 130, 200, 0.35);
+    }
+
+    .card.voted-by-me {
+      background: #ffe8e8;
+      box-shadow:
+        0 4px 10px rgba(0, 0, 0, 0.12),
+        0 0 0 1px rgba(210, 80, 80, 0.4);
     }
 
     #result-section, #gameover-section {
@@ -521,36 +516,81 @@
           </div>
 
           <!-- ロビー表示 -->
-          <div class="section" id="lobby-section" style="display:none;">
-            <h2>ロビー</h2>
-            <p id="lobby-info"></p>
-            <ul id="player-list"></ul>
-            <div style="margin-top:8px; display:flex; gap:6px; align-items:center;">
-              <button id="start-button" disabled>ゲーム開始（ホスト）</button>
-            </div>
-            <div class="small" style="margin-top:4px;">
-              ※ 最低2人から開始できます。最大4人まで。
+<div class="section" id="lobby-section" style="display:none;">
+  <h2>ロビー</h2>
+  <p id="lobby-info"></p>
+  <ul id="player-list"></ul>
+
+           <!-- ★ モード選択 -->
+          <div style="margin-top:8px;">
+            <div class="small">ゲームモード</div>
+            <select id="mode-select">
+              <option value="draft">カードドラフトモード（2枚から選んで手札を作る）</option>
+              <option value="custom">自作手札モード（自分で5個の回答を考える）</option>
+            </select>
+            <div class="small" id="mode-info" style="margin-top:4px;">
+              ホストがモードを選択します。
             </div>
           </div>
+
+          <div style="margin-top:8px; display:flex; gap:6px; align-items:center;">
+            <button id="start-button" disabled>ゲーム開始（ホスト）</button>
+          </div>
+          <div class="small" style="margin-top:4px;">
+            ※ 最低2人から開始できます。最大4人まで。
+          </div>
+        </div>
         </div>
 
         <!-- 右カラム：スコア & 回答エリア -->
         <div>
-          <!-- ★ スコア専用ボックス -->
+          <!-- スコア専用ボックス -->
           <div class="section" id="score-section" style="display:none;">
             <h2>スコア</h2>
             <div id="score-list"></div>
           </div>
 
-          <!-- ★ 回答エリア（お題＋手札・投票・結果など） -->
+          <!-- 回答エリア -->
           <div class="section" id="game-section" style="display:none;">
             <h2 id="phase-title">ゲーム</h2>
             <div id="phase-info" class="small"></div>
+
+            <!-- 手札ドラフトフェーズ -->
+            <div id="draft-section" style="display:none;">
+            <div class="cards-wrapper-title">
+                <h3 class="cards-title">
+                手札構築（あと <span id="draft-remaining-count"></span> 枚）
+                </h3>
+                <div class="small">2枚のカードから1枚を選んで手札に加えます。</div>
+            </div>
+            <div id="draft-cards" class="card-grid"></div>
+            </div>
+
 
             <div id="prompt-section">
               <div class="prompt" id="prompt-text">まだゲームは開始していません。</div>
               <div class="prompt-label">お題がここに表示されます。</div>
             </div>
+
+            <!-- 自作手札モード用：手札入力フェーズ -->
+            <div id="manual-hand-section" style="display:none;">
+              <div class="cards-wrapper-title">
+                <h3 class="cards-title">手札を作成</h3>
+                <div class="small">大喜利の回答を5つ入力してください（各ラウンドで使われます）。</div>
+              </div>
+              <div id="manual-hand-inputs">
+                <textarea class="manual-hand-input" rows="2" placeholder="回答1"></textarea>
+                <textarea class="manual-hand-input" rows="2" placeholder="回答2"></textarea>
+                <textarea class="manual-hand-input" rows="2" placeholder="回答3"></textarea>
+                <textarea class="manual-hand-input" rows="2" placeholder="回答4"></textarea>
+                <textarea class="manual-hand-input" rows="2" placeholder="回答5"></textarea>
+              </div>
+              <div style="margin-top:6px;">
+                <button id="submit-hand-button">手札を確定する</button>
+              </div>
+              <div id="manual-hand-message" class="small" style="margin-top:4px;"></div>
+            </div>
+
 
             <!-- 回答選択フェーズ -->
             <div id="hand-section" style="display:none;">
@@ -570,27 +610,32 @@
               <div id="vote-cards" class="card-grid"></div>
             </div>
 
-            <!-- ラウンド結果 -->
+                        <!-- ラウンド結果 -->
             <div id="result-section" style="display:none;">
-              <h3>ラウンド結果</h3>
-              <div id="result-list"></div>
+            <h3>ラウンド結果</h3>
+            <div id="result-list"></div>
+            <div style="margin-top:8px;">
+                <button id="next-round-button" class="btn-ghost">次のラウンドへ</button>
+                <div id="next-round-wait" class="small" style="margin-top:4px; display:none;">
+                他のプレイヤーを待っています…
+                </div>
             </div>
+            </div>
+
 
             <!-- ゲーム終了 -->
             <div id="gameover-section" style="display:none;">
-            <h3>最終結果</h3>
-            <div id="gameover-list"></div>
-            <div style="margin-top:8px;">
+              <h3>最終結果</h3>
+              <div id="gameover-list"></div>
+              <div style="margin-top:8px;">
                 <button id="restart-button" class="btn-ghost">もう一回遊ぶ（ホストのみ）</button>
+              </div>
             </div>
-            </div>
-
 
             <div id="game-error" class="error"></div>
           </div>
         </div>
       </main>
-
     </div>
   </div>
 
@@ -602,6 +647,7 @@
     let currentPhase = 'waiting';
     let hasPlayedThisRound = false;
     let hasVotedThisRound = false;
+    let myVotedSubmissionId = null;
 
     const joinSection = document.getElementById('join-section');
     const joinButton = document.getElementById('join-button');
@@ -613,15 +659,37 @@
     const playerList = document.getElementById('player-list');
     const startButton = document.getElementById('start-button');
 
-    const scoreSection = document.getElementById('score-section');  // ★ 追加
-    const gameSection = document.getElementById('game-section');    // ★ ここで取得
+    const modeSelect = document.getElementById('mode-select');
+    const modeInfo = document.getElementById('mode-info');
 
+    const manualHandSection = document.getElementById('manual-hand-section');
+    const manualHandInputs = document.querySelectorAll('.manual-hand-input');
+    const submitHandButton = document.getElementById('submit-hand-button');
+    const manualHandMessage = document.getElementById('manual-hand-message');
+
+    let currentGameMode = 'draft';  // デフォルト
+
+    modeSelect.addEventListener('change', () => {
+      currentGameMode = modeSelect.value;
+    });
+
+
+    const draftSection = document.getElementById('draft-section');
+    const draftCards = document.getElementById('draft-cards');
+    const draftRemainingCount = document.getElementById('draft-remaining-count');
+
+    const nextRoundButton = document.getElementById('next-round-button');
+    const nextRoundWait = document.getElementById('next-round-wait');
+
+
+
+    const scoreSection = document.getElementById('score-section');
+    const gameSection = document.getElementById('game-section');
     const phaseTitle = document.getElementById('phase-title');
     const phaseInfo = document.getElementById('phase-info');
     const scoreList = document.getElementById('score-list');
     const promptText = document.getElementById('prompt-text');
     const phaseBadgeText = document.getElementById('phase-badge-text');
-
 
     const handSection = document.getElementById('hand-section');
     const handCards = document.getElementById('hand-cards');
@@ -635,10 +703,8 @@
     const gameoverSection = document.getElementById('gameover-section');
     const gameoverList = document.getElementById('gameover-list');
 
-    const restartButton = document.getElementById('restart-button');
-
-
     const gameError = document.getElementById('game-error');
+    const restartButton = document.getElementById('restart-button');
 
     function updatePhaseBadge(label) {
       phaseBadgeText.textContent = label;
@@ -651,12 +717,11 @@
     }
 
     function initialsFromName(name) {
-    if (!name) return '?';
-    const trimmed = name.trim();
-    if (!trimmed) return '?';
-    return trimmed[0];   // 先頭1文字だけ
+      if (!name) return '?';
+      const trimmed = name.trim();
+      if (!trimmed) return '?';
+      return trimmed[0];
     }
-
 
     function renderScores(scores) {
       scoreList.innerHTML = '';
@@ -694,37 +759,65 @@
     }
 
     function showHand(hand) {
-    handSection.style.display = 'block';
-    voteSection.style.display = 'none';
-    resultSection.style.display = 'none';
-    gameoverSection.style.display = 'none';
-    gameError.textContent = '';
+      handSection.style.display = 'block';
+      voteSection.style.display = 'none';
+      resultSection.style.display = 'none';
+      gameoverSection.style.display = 'none';
+      gameError.textContent = '';
 
-    handCards.innerHTML = '';
-    hand.forEach((cardText, index) => {
+      handCards.innerHTML = '';
+      hand.forEach((cardText, index) => {
         const div = document.createElement('div');
         div.className = 'card';
         div.textContent = cardText;
 
-        // ← ラベルは付けない
-
         if (hasPlayedThisRound) {
-        div.classList.add('disabled');
+          div.classList.add('disabled');
         } else {
-        div.addEventListener('click', () => {
+          div.addEventListener('click', () => {
             if (hasPlayedThisRound) return;
             if (!confirm(`このカードを出しますか？\n\n${cardText}`)) return;
             socket.emit('playCard', { cardIndex: index });
-        });
+          });
         }
         handCards.appendChild(div);
+      });
+    }
+
+    function showDraftOptions(data) {
+    // ドラフト画面表示
+    draftSection.style.display = 'block';
+    handSection.style.display = 'none';
+    voteSection.style.display = 'none';
+    resultSection.style.display = 'none';
+    gameoverSection.style.display = 'none';
+    document.getElementById('prompt-section').style.display = 'none';
+    gameError.textContent = '';
+
+    const remaining = data.totalPicks - data.picksDone;
+    draftRemainingCount.textContent = remaining;
+
+    draftCards.innerHTML = '';
+    data.options.forEach((text, index) => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.textContent = text;
+
+        div.addEventListener('click', () => {
+        if (!confirm(`このカードを手札に加えますか？\n\n${text}`)) return;
+        socket.emit('pickDraftCard', { choiceIndex: index });
+
+        // 選んだ後は、一旦全部グレーアウト
+        const cards = draftCards.querySelectorAll('.card');
+        cards.forEach(c => c.classList.add('disabled'));
+        });
+
+        draftCards.appendChild(div);
     });
     }
 
 
-    let myVotedSubmissionId = null; // ★ ファイルの上の方（グローバル変数）に追加
-
-    function showVoteCards(submissions) {
+  function showVoteCards(submissions) {
     handSection.style.display = 'none';
     voteSection.style.display = 'block';
     resultSection.style.display = 'none';
@@ -733,71 +826,96 @@
 
     voteCards.innerHTML = '';
     submissions.forEach(sub => {
-        const div = document.createElement('div');
-        div.className = 'card';
-        div.textContent = sub.text;
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.textContent = sub.text;
 
-        const label = document.createElement('div');
-        label.className = 'card-label';
-        label.textContent = '投票対象';
-        div.appendChild(label);
-
-        // ★ 自分が出したカードなら薄い水色に
-        if (sub.isMine) {
+      // 自分のカードは水色で表示して、クリック不可にする
+      if (sub.isMine) {
         div.classList.add('my-submission');
-        }
-
-        // ★ すでに投票済みで、このカードが自分の投票先なら薄い赤
+        div.classList.add('disabled');       // ← ここがポイント（選べない）
+      } else {
+        // すでに自分がこのカードに投票済みなら赤く
         if (myVotedSubmissionId && myVotedSubmissionId === sub.submissionId) {
-        div.classList.add('voted-by-me');
+          div.classList.add('voted-by-me');
         }
 
         if (hasVotedThisRound) {
-        div.classList.add('disabled');
+          // もう他のカードに投票済みなら触れない
+          div.classList.add('disabled');
         } else {
-        div.addEventListener('click', () => {
+          div.addEventListener('click', () => {
             if (hasVotedThisRound) return;
             if (!confirm(`この回答に投票しますか？\n\n${sub.text}`)) return;
 
-            myVotedSubmissionId = sub.submissionId;       // ★ どれに投票したか記録
+            // クライアント側の状態更新
+            myVotedSubmissionId = sub.submissionId;
             hasVotedThisRound = true;
+
+            // サーバに投票を送信
             socket.emit('castVote', { submissionId: sub.submissionId });
 
-            // 自分が投票したカードを赤く、他は無効化
+            // 見た目を更新：自分が選んだカードだけ赤、そのほかはグレーアウト
             const cards = voteCards.querySelectorAll('.card');
             cards.forEach(c => {
-            const isThisCard =
-                c.textContent.replace('投票対象', '').trim() === sub.text.trim();
-            if (isThisCard) {
+              if (c.textContent.trim() === sub.text.trim()) {
                 c.classList.add('voted-by-me');
-            } else {
+              } else {
                 c.classList.add('disabled');
-            }
+              }
             });
-        });
+          });
         }
-        voteCards.appendChild(div);
+      }
+
+      voteCards.appendChild(div);
     });
-    }
+  }
+
+
 
 
     function showRoundResult(data) {
-      handSection.style.display = 'none';
-      voteSection.style.display = 'none';
-      resultSection.style.display = 'block';
-      gameoverSection.style.display = 'none';
+    handSection.style.display = 'none';
+    voteSection.style.display = 'none';
+    resultSection.style.display = 'block';
+    gameoverSection.style.display = 'none';
 
-      resultList.innerHTML = '';
-      const intro = document.createElement('div');
-      intro.textContent = `第${data.round}ラウンドの結果：`;
-      resultList.appendChild(intro);
+    resultList.innerHTML = '';
 
-      data.results.forEach(r => {
+    const intro = document.createElement('div');
+    intro.textContent = `第${data.round}ラウンドの結果：`;
+    resultList.appendChild(intro);
+
+    // ★ 得票数の最大値を調べる
+    const maxVotes = Math.max(...data.results.map(r => r.votes));
+
+    data.results.forEach(r => {
         const div = document.createElement('div');
+
+        // 一位を強調する
+        if (r.votes === maxVotes && maxVotes > 0) {
+        div.className = 'winner-result';
+        div.textContent = `🏆「${r.text}」 by ${r.ownerName} …… ${r.votes}票`;
+        } else {
         div.textContent = `「${r.text}」 by ${r.ownerName} …… ${r.votes}票`;
+        }
+
         resultList.appendChild(div);
-      });
+    });
+
+    // ★ 最終ラウンドかどうかで「次ラウンドへ」ボタンの制御
+    if (data.isLastRound) {
+        nextRoundButton.style.display = 'none';
+        nextRoundWait.style.display = 'none';
+    } else {
+        nextRoundButton.style.display = 'inline-flex';
+        nextRoundButton.disabled = false;
+        nextRoundWait.style.display = 'none';
     }
+    }
+
+
 
     function showGameOver(data) {
       handSection.style.display = 'none';
@@ -820,26 +938,50 @@
     });
 
     startButton.addEventListener('click', () => {
-      socket.emit('startGame');
+      socket.emit('startGame', { mode: currentGameMode });
     });
+
+    submitHandButton.addEventListener('click', () => {
+      const answers = [];
+      manualHandInputs.forEach(ta => {
+        answers.push(ta.value);
+      });
+
+      // クライアント側でもざっくりバリデーション
+      const trimmed = answers.map(a => a.trim());
+      if (trimmed.some(t => t.length === 0)) {
+        manualHandMessage.textContent = '空欄の回答があります。すべて入力してください。';
+        return;
+      }
+
+      submitHandButton.disabled = true;
+      manualHandMessage.textContent = '手札を送信しました。他のプレイヤーを待っています…';
+
+      socket.emit('submitInitialHand', { answers: trimmed });
+    });
+
+
 
     restartButton.addEventListener('click', () => {
       socket.emit('restartGame');
     });
 
-
-    socket.on('joined', data => {
-    myPlayerId = data.playerId;
-    joinSection.style.display = 'none';
-    lobbySection.style.display = 'block';
-
-    // ★ 右側の2つのボックスを表示
-    scoreSection.style.display = 'block';
-    gameSection.style.display = 'block';
-
-    setPhase('ロビー', '他のプレイヤーを待っています。', 'ロビー');
+    nextRoundButton.addEventListener('click', () => {
+    nextRoundButton.disabled = true;
+    nextRoundWait.style.display = 'block';
+    socket.emit('readyNextRound');
     });
 
+
+
+    socket.on('joined', data => {
+      myPlayerId = data.playerId;
+      joinSection.style.display = 'none';
+      lobbySection.style.display = 'block';
+      scoreSection.style.display = 'block';
+      gameSection.style.display = 'block';
+      setPhase('ロビー', '他のプレイヤーを待っています。', 'ロビー');
+    });
 
     socket.on('lobbyUpdate', data => {
       hostId = data.hostId;
@@ -892,50 +1034,121 @@
         startButton.disabled = true;
       }
 
+      // ★ ここでゲームフェーズごとの画面切り替え
       if (data.gamePhase === 'waiting') {
+        // ロビーに戻す
+        lobbySection.style.display = 'block';
+        gameSection.style.display = 'none';
+        gameoverSection.style.display = 'none';
+
         updatePhaseBadge('待機中');
+      } else {
+        // ゲーム中フェーズの場合（お好みで）
+        lobbySection.style.display = 'none';
+        gameSection.style.display = 'block';
       }
     });
 
+    // サーバから「2枚の候補」が送られてきたとき
+socket.on('draftOptions', data => {
+  currentPhase = 'draft';
+  setPhase(
+    '手札構築',
+    '2枚のカードから1枚を選んで、手札を5枚作ります。',
+    `手札構築 ${data.picksDone + 1}/${data.totalPicks}`
+  );
+  showDraftOptions(data);
+});
+
+// 1枚選び終わったとき（サーバからの確認）
+    socket.on('draftPicked', data => {
+    const remaining = data.totalPicks - data.picksDone;
+    if (remaining > 0) {
+        setPhase(
+        '手札構築',
+        `あと${remaining}枚選ぶとゲーム開始です。`,
+        `手札構築 ${data.picksDone + 1}/${data.totalPicks}`
+        );
+    } else {
+        setPhase(
+        '他のプレイヤーを待機中',
+        '全員の手札準備が終わるとゲームが始まります。',
+        '手札構築完了'
+        );
+        // 自分は5枚選びきったので、次のラウンド開始を待つ
+        draftCards.innerHTML = '';
+    }
+    });
+
+
     socket.on('roundStarted', data => {
-    currentPhase = 'play';
-    hasPlayedThisRound = false;
-    hasVotedThisRound = false;
-    myVotedSubmissionId = null;  // もしまだ入れてなかったらここも
+      currentPhase = 'play';
+      hasPlayedThisRound = false;
+      hasVotedThisRound = false;
+      myVotedSubmissionId = null;
 
-    // ★ お題エリアを再表示
-    document.getElementById('prompt-section').style.display = 'block';
+      draftSection.style.display = 'none'; // ★ ドラフトUIを隠す
+      manualHandSection.style.display = 'none'; 
 
-    setPhase(
+      document.getElementById('prompt-section').style.display = 'block';
+
+        // ★ 次ラウンドボタン関連をリセット
+      nextRoundButton.style.display = 'none';
+      nextRoundWait.style.display = 'none';
+      
+
+      setPhase(
         `第${data.round}ラウンド：回答選択`,
         '手札から1枚選んでください。',
         `回答選択 ${data.round}/${data.totalRounds}`
-    );
-    promptText.textContent = data.prompt;
-    renderScores(data.scores);
-    showHand(data.hand);
+      );
+      promptText.textContent = data.prompt;
+      renderScores(data.scores);
+      showHand(data.hand);
 
-    resultSection.style.display = 'none';
-    gameoverSection.style.display = 'none';
-    gameError.textContent = '';
+      resultSection.style.display = 'none';
+      gameoverSection.style.display = 'none';
+      gameError.textContent = '';
+    });
+
+    socket.on('startHandInput', data => {
+      currentPhase = 'handInput';
+      setPhase(
+        '手札作成',
+        '自分だけの回答カードを5つ入力してください。',
+        '手札作成'
+      );
+
+      manualHandSection.style.display = 'block';
+      handSection.style.display = 'none';
+      voteSection.style.display = 'none';
+      resultSection.style.display = 'none';
+      gameoverSection.style.display = 'none';
+      document.getElementById('prompt-section').style.display = 'none';
+
+      manualHandMessage.textContent = '';
+      submitHandButton.disabled = false;
+      manualHandInputs.forEach((ta, idx) => {
+        ta.value = '';  // 毎回クリア
+        ta.placeholder = `回答${idx + 1}`;
+      });
     });
 
 
     socket.on('startVote', data => {
-    currentPhase = 'vote';
-    hasVotedThisRound = false;
-    myVotedSubmissionId = null;  // ★ ここ追加
+      currentPhase = 'vote';
+      hasVotedThisRound = false;
+      myVotedSubmissionId = null;
 
-    setPhase(
+      setPhase(
         `第${data.round}ラウンド：投票`,
         '一番面白いと思う回答に投票してください。（自分のカードには投票できません）',
         `投票中 ${data.round}/${data.totalRounds}`
-    );
-    promptText.textContent = data.prompt;
-    renderScores(data.scores);
-    showVoteCards(data.submissions);
+      );
+      promptText.textContent = data.prompt;
+      renderScores(data.scores);
+      showVoteCards(data.submissions);
     });
-
 
     socket.on('roundResult', data => {
       currentPhase = 'result';
@@ -949,23 +1162,19 @@
     });
 
     socket.on('gameOver', data => {
-    currentPhase = 'finished';
-    setPhase('ゲーム終了', '最終結果をご確認ください。', 'ゲーム終了');
+      currentPhase = 'finished';
+      setPhase('ゲーム終了', '最終結果をご確認ください。', 'ゲーム終了');
 
-    // お題エリアを非表示
-    document.getElementById('prompt-section').style.display = 'none';
+      document.getElementById('prompt-section').style.display = 'none';
 
-    showGameOver(data);
+      showGameOver(data);
 
-    // ★ ホストだけリトライボタン有効にする
-    if (myPlayerId && myPlayerId === hostId) {
+      if (myPlayerId && myPlayerId === hostId) {
         restartButton.disabled = false;
-    } else {
+      } else {
         restartButton.disabled = true;
-    }
+      }
     });
-
-
 
     socket.on('cardPlayed', () => {
       hasPlayedThisRound = true;
