@@ -16,7 +16,7 @@ const MAX_PLAYERS = 4;
 const TOTAL_ROUNDS = 5;
 const HAND_SIZE = 5;
 
-// お題（後から増やしてOK）
+// お題
 const PROMPTS = [
   'こんな○○は嫌だ、どんな○○？',
   'ドラえもんの新しいひみつ道具とは？',
@@ -40,7 +40,7 @@ const PROMPTS = [
   '卒業式で校長先生が言ってはいけない一言とは？'
 ];
 
-// 手札に使う回答カード（後から増やしてOK）
+// 手札に使う回答カード
 const ANSWER_CARDS = [
   '課金すれば解決する',
   '全部AIのせいにする',
@@ -99,15 +99,19 @@ let players = []; // { id, name, socketId, hand:[], score }
 let nextPlayerId = 1;
 
 let gameState = {
-  phase: 'waiting', // 'waiting' | 'play' | 'vote' | 'result' | 'finished'
+  phase: 'waiting',
   round: 0,
   currentPrompt: null,
   promptDeck: [],
   answerDeck: [],
-  submissions: [], // { submissionId, playerId, text, votes }
+  submissions: [],
   nextSubmissionId: 1,
-  votesReceived: {} // voterPlayerId -> submissionId
+  votesReceived: {},
+  nextRoundReady: {},
+  gameMode: 'draft'   // ★ 追加： 'draft' or 'custom'
 };
+
+
 
 // ----------------- ユーティリティ -----------------
 function shuffle(array) {
@@ -158,26 +162,96 @@ function dealInitialHands() {
 function startGame() {
   if (players.length === 0) return;
 
-  console.log('Game started');
-  // 山札を初期化
+  console.log('Game started, mode =', gameState.gameMode);
+
+  // 山札準備（PROMPTS はどちらのモードでも使う）
   gameState.promptDeck = [...PROMPTS];
-  gameState.answerDeck = [...ANSWER_CARDS];
   shuffle(gameState.promptDeck);
+
+  // 回答カード山札（draft モードで主に使用）
+  gameState.answerDeck = [...ANSWER_CARDS];
   shuffle(gameState.answerDeck);
 
   players.forEach(p => {
     p.score = 0;
+    p.hand = [];
+    p.draftCount = 0;
+    p.currentDraftOptions = [];
+    p.initialHandSubmitted = false;
   });
 
   gameState.round = 0;
-  gameState.phase = 'play';
   gameState.submissions = [];
   gameState.votesReceived = {};
   gameState.nextSubmissionId = 1;
+  gameState.nextRoundReady = {};
 
-  dealInitialHands();
-  startNextRound();
+  if (gameState.gameMode === 'custom') {
+    // ★ 自分で手札を作るモード
+    startHandInputForAllPlayers();
+  } else {
+    // ★ デフォルト：ドラフトモード（いままで通り）
+    gameState.phase = 'draft';
+    startDraftForAllPlayers();
+  }
+
+  broadcastLobby();
 }
+
+
+// 山札から回答カードを1枚引く（足りなくなったらリシャッフル）
+function drawAnswerCard() {
+  if (gameState.answerDeck.length === 0) {
+    gameState.answerDeck = [...ANSWER_CARDS];
+    shuffle(gameState.answerDeck);
+  }
+  return gameState.answerDeck.pop();
+}
+
+// 特定プレイヤーに「2枚の候補」を送る
+function sendDraftOptionsToPlayer(player) {
+  if (player.draftCount >= HAND_SIZE) return;
+
+  const option1 = drawAnswerCard();
+  const option2 = drawAnswerCard();
+
+  player.currentDraftOptions = [option1, option2];
+
+  const socket = io.sockets.sockets.get(player.socketId);
+  if (!socket) return;
+
+  socket.emit('draftOptions', {
+    picksDone: player.draftCount,   // 何枚取り終わってるか
+    totalPicks: HAND_SIZE,
+    options: [option1, option2]
+  });
+}
+
+// 全プレイヤーに最初のドラフト候補を配る
+function startDraftForAllPlayers() {
+  players.forEach(p => {
+    sendDraftOptionsToPlayer(p);
+  });
+}
+
+function startHandInputForAllPlayers() {
+  gameState.phase = 'handInput';
+  console.log('Starting hand input phase');
+
+  players.forEach(p => {
+    p.hand = [];
+    p.initialHandSubmitted = false;
+  });
+
+  players.forEach(p => {
+    const socket = io.sockets.sockets.get(p.socketId);
+    if (!socket) return;
+    socket.emit('startHandInput', {
+      handSize: HAND_SIZE
+    });
+  });
+}
+
 
 function startNextRound() {
   gameState.round += 1;
@@ -190,8 +264,9 @@ function startNextRound() {
   gameState.phase = 'play';
   gameState.submissions = [];
   gameState.votesReceived = {};
+  gameState.nextRoundReady = {};  
 
-  // お題を1つ引く（足りなくなったらまたシャッフルして使い回し）
+  // お題を1つ引く（足りなくなったら再シャッフル）
   if (gameState.promptDeck.length === 0) {
     gameState.promptDeck = [...PROMPTS];
     shuffle(gameState.promptDeck);
@@ -220,15 +295,16 @@ function startNextRound() {
 
   broadcastLobby();
 }
+
 function tryMoveToVotePhase() {
   if (gameState.submissions.length === players.length) {
     gameState.phase = 'vote';
 
-    // 提出カードを一度シャッフル（全員同じ順で見る）
+    // 提出カードをシャッフル（ベース順序）
     const shuffled = [...gameState.submissions];
     shuffle(shuffled);
 
-    // 各プレイヤーごとに「これは自分のカードかどうか」を付けて送る
+    // 各プレイヤーに「自分のカードかどうか」を付けて送る
     players.forEach(p => {
       const socket = io.sockets.sockets.get(p.socketId);
       if (!socket) return;
@@ -236,7 +312,7 @@ function tryMoveToVotePhase() {
       const submissionsForThisPlayer = shuffled.map(s => ({
         submissionId: s.submissionId,
         text: s.text,
-        isMine: s.playerId === p.id   // 自分の出したカードなら true
+        isMine: s.playerId === p.id
       }));
 
       socket.emit('startVote', {
@@ -254,20 +330,16 @@ function tryMoveToVotePhase() {
   }
 }
 
-
 function tryFinishVoting() {
   if (Object.keys(gameState.votesReceived).length === players.length) {
-    // 集計
     gameState.phase = 'result';
 
-    // submissionId -> submission オブジェクト
     const submissionMap = {};
     gameState.submissions.forEach(s => {
       submissionMap[s.submissionId] = s;
       s.votes = 0;
     });
 
-    // 投票数カウント
     for (const [voterIdStr, submissionId] of Object.entries(gameState.votesReceived)) {
       const sub = submissionMap[submissionId];
       if (sub) {
@@ -275,7 +347,6 @@ function tryFinishVoting() {
       }
     }
 
-    // 点数加算
     gameState.submissions.forEach(s => {
       const owner = getPlayerById(s.playerId);
       if (owner) {
@@ -283,7 +354,6 @@ function tryFinishVoting() {
       }
     });
 
-    // クライアント向けに結果を整形
     const resultsForClients = gameState.submissions.map(s => {
       const owner = getPlayerById(s.playerId);
       return {
@@ -300,17 +370,25 @@ function tryFinishVoting() {
     }));
 
     io.emit('roundResult', {
-      round: gameState.round,
-      prompt: gameState.currentPrompt,
-      results: resultsForClients,
-      scores: scoresForClients,
-      isLastRound: gameState.round >= TOTAL_ROUNDS
+    round: gameState.round,
+    prompt: gameState.currentPrompt,
+    results: resultsForClients,
+    scores: scoresForClients,
+    isLastRound: gameState.round >= TOTAL_ROUNDS
     });
 
-    // 少し待ってから次ラウンド（必要ならここはホストのボタンに変えてもいい）
+    // ★ 最終ラウンドかどうかで分岐
+    if (gameState.round >= TOTAL_ROUNDS) {
+    // 最終ラウンド：少し間をおいて自動でゲーム終了
     setTimeout(() => {
-      startNextRound();
-    }, 8000); // 8秒後に次ラウンド
+        endGame();
+    }, 8000);
+    } else {
+    // それ以外：全員の「次ラウンドへ」ボタン待ち
+    gameState.phase = 'result';
+    gameState.nextRoundReady = {};
+    }
+
   }
 }
 
@@ -349,8 +427,13 @@ io.on('connection', socket => {
       name: name || `プレイヤー${nextPlayerId}`,
       socketId: socket.id,
       hand: [],
-      score: 0
+      score: 0,
+      draftCount: 0,
+      currentDraftOptions: [],
+      initialHandSubmitted: false   // ★ 追加
     };
+
+
     players.push(player);
 
     console.log(`Player joined: ${player.name} (${player.id})`);
@@ -362,7 +445,110 @@ io.on('connection', socket => {
     broadcastLobby();
   });
 
-  socket.on('startGame', () => {
+  socket.on('pickDraftCard', ({ choiceIndex }) => {
+    const player = getPlayerBySocket(socket);
+    if (!player) return;
+    if (gameState.phase !== 'draft') return;
+
+    if (!Array.isArray(player.currentDraftOptions) || player.currentDraftOptions.length !== 2) {
+      socket.emit('errorMessage', { message: '現在選べるカードがありません。' });
+      return;
+    }
+
+    if (choiceIndex !== 0 && choiceIndex !== 1) {
+      socket.emit('errorMessage', { message: '不正な選択肢です。' });
+      return;
+    }
+
+    const chosenText = player.currentDraftOptions[choiceIndex];
+
+    // 手札に追加
+    player.hand.push(chosenText);
+    player.draftCount = (player.draftCount || 0) + 1;
+    player.currentDraftOptions = [];
+
+    // クライアント側に「何枚取り終わったか」を通知
+    socket.emit('draftPicked', {
+      picksDone: player.draftCount,
+      totalPicks: HAND_SIZE
+    });
+
+    // まだ5枚に達していなければ、次の2枚を提示
+    if (player.draftCount < HAND_SIZE) {
+      sendDraftOptionsToPlayer(player);
+    } else {
+      // このプレイヤーはドラフト完了
+      const allReady = players.every(p => (p.draftCount || 0) >= HAND_SIZE);
+      if (allReady) {
+        // 全員完了 → 本編開始
+        console.log('All players finished drafting. Starting round 1.');
+        gameState.round = 0;
+        startNextRound();
+      }
+    }
+  });
+
+    socket.on('submitInitialHand', ({ answers }) => {
+      const player = getPlayerBySocket(socket);
+      if (!player) return;
+      if (gameState.phase !== 'handInput') return;
+      if (gameState.gameMode !== 'custom') return;
+
+      if (!Array.isArray(answers) || answers.length !== HAND_SIZE) {
+        socket.emit('errorMessage', { message: `手札はちょうど${HAND_SIZE}枚入力してください。` });
+        return;
+      }
+
+      // 空の回答を弾きたい場合
+      const trimmed = answers.map(a => String(a || '').trim());
+      if (trimmed.some(t => t.length === 0)) {
+        socket.emit('errorMessage', { message: '空欄の回答があります。すべて入力してください。' });
+        return;
+      }
+
+      player.hand = trimmed;
+      player.initialHandSubmitted = true;
+
+      console.log(`Player ${player.name} submitted initial hand.`);
+
+      // 全員出し終わったかチェック
+      const allSubmitted = players.every(p => p.initialHandSubmitted);
+      if (allSubmitted) {
+        console.log('All players submitted custom hands. Starting round 1.');
+        gameState.round = 0;
+        startNextRound();   // ★ ここからはいつものラウンド処理
+      } else {
+        // 必要なら「送信完了だけど他の人待ち」を返してもよい
+        socket.emit('infoMessage', { message: '手札を登録しました。他のプレイヤーを待っています。' });
+      }
+    });
+
+
+    socket.on('readyNextRound', () => {
+    const player = getPlayerBySocket(socket);
+    if (!player) return;
+
+    // 結果フェーズ以外 / 最終ラウンドでは受付しない
+    if (gameState.phase !== 'result') return;
+    if (gameState.round >= TOTAL_ROUNDS) return;
+
+    if (!gameState.nextRoundReady) {
+        gameState.nextRoundReady = {};
+    }
+
+    gameState.nextRoundReady[player.id] = true;
+
+    const allReady = players.every(p => gameState.nextRoundReady[p.id]);
+
+    if (allReady) {
+        console.log('All players pressed "next round". Moving to next round.');
+        startNextRound();
+    }
+    });
+
+
+
+  socket.on('startGame', (data) => {
     const host = getHostPlayer();
     const player = getPlayerBySocket(socket);
     if (!player || !host || player.id !== host.id) {
@@ -374,8 +560,13 @@ io.on('connection', socket => {
       return;
     }
     if (gameState.phase !== 'waiting') return;
+
+    const mode = data && data.mode === 'custom' ? 'custom' : 'draft';  // ★
+    gameState.gameMode = mode;
+
     startGame();
   });
+
 
   socket.on('playCard', ({ cardIndex }) => {
     const player = getPlayerBySocket(socket);
@@ -391,7 +582,6 @@ io.on('connection', socket => {
       return;
     }
 
-    // すでに提出済みかチェック
     const alreadySubmitted = gameState.submissions.some(s => s.playerId === player.id);
     if (alreadySubmitted) {
       socket.emit('errorMessage', { message: 'このラウンドではすでにカードを出しています。' });
@@ -419,7 +609,6 @@ io.on('connection', socket => {
     if (!voter) return;
     if (gameState.phase !== 'vote') return;
 
-    // すでに投票していないか
     if (gameState.votesReceived[voter.id]) {
       socket.emit('errorMessage', { message: 'すでに投票済みです。' });
       return;
@@ -431,7 +620,6 @@ io.on('connection', socket => {
       return;
     }
 
-    // 自分のカードには投票できない
     if (submission.playerId === voter.id) {
       socket.emit('errorMessage', { message: '自分のカードには投票できません。' });
       return;
@@ -443,28 +631,30 @@ io.on('connection', socket => {
 
     tryFinishVoting();
   });
-  
+
   socket.on('restartGame', () => {
     const host = getHostPlayer();
     const player = getPlayerBySocket(socket);
-
-    // ホスト以外 / プレイヤー不明 / ゲームが終わっていない場合は拒否
     if (!player || !host || player.id !== host.id) {
-      socket.emit('errorMessage', { message: 'ホストのみゲームをリスタートできます。' });
-      return;
-    }
-    if (gameState.phase !== 'finished') {
-      socket.emit('errorMessage', { message: 'ゲーム終了後のみリスタートできます。' });
-      return;
-    }
-    if (players.length < 2) {
-      socket.emit('errorMessage', { message: 'プレイヤーが2人以上いる必要があります。' });
+      socket.emit('errorMessage', { message: 'ホストのみ再開できます。' });
       return;
     }
 
-    console.log('Game restarting by host:', player.name);
+    console.log(`Game restarting by host: ${player.name}`);
 
-    // ゲーム状態リセット
+    // いまのモードを退避（なければ draft）
+    const currentMode = gameState.gameMode || 'draft';
+
+    // プレイヤーの状態をリセット（席はそのまま）
+    players.forEach(p => {
+      p.score = 0;
+      p.hand = [];
+      p.draftCount = 0;
+      p.currentDraftOptions = [];
+      p.initialHandSubmitted = false;
+    });
+
+    // gameState を「待機中」にリセット（モードだけ引き継ぐ）
     gameState = {
       phase: 'waiting',
       round: 0,
@@ -473,20 +663,18 @@ io.on('connection', socket => {
       answerDeck: [],
       submissions: [],
       nextSubmissionId: 1,
-      votesReceived: {}
+      votesReceived: {},
+      nextRoundReady: {},
+      gameMode: currentMode
     };
 
-    // プレイヤー状態リセット（スコアと手札）
-    players.forEach(p => {
-      p.score = 0;
-      p.hand = [];
-    });
+    // ★ ここでは startGame() は呼ばない！
+    //   → 次のゲーム開始はホストが「ゲーム開始」ボタンを押したタイミングに任せる
 
-    // そのまま新ゲーム開始
-    startGame();
+    broadcastLobby();
   });
 
-  
+
 
   socket.on('disconnect', () => {
     console.log('user disconnected', socket.id);
@@ -495,8 +683,7 @@ io.on('connection', socket => {
       const [removed] = players.splice(index, 1);
       console.log(`Player left: ${removed.name}`);
       if (players.length === 0) {
-        // 全員抜けたらゲームリセット
-        gameState = {
+        let gameState = {
           phase: 'waiting',
           round: 0,
           currentPrompt: null,
@@ -504,8 +691,11 @@ io.on('connection', socket => {
           answerDeck: [],
           submissions: [],
           nextSubmissionId: 1,
-          votesReceived: {}
+          votesReceived: {},
+          nextRoundReady: {},
+          gameMode: 'draft'   // ★ 追加： 'draft' or 'custom'
         };
+
         nextPlayerId = 1;
       }
       broadcastLobby();
@@ -513,6 +703,6 @@ io.on('connection', socket => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on port ${PORT}`);
 });
